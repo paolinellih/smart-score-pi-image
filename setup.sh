@@ -24,14 +24,21 @@ fail() { echo -e "\033[1;31m[FAIL]\033[0m $*" >&2; exit 1; }
 [[ $EUID -ne 0 ]] && fail "Run as root: curl ... | sudo bash"
 [[ $(uname -m) != "aarch64" ]] && fail "Requires 64-bit ARM (Raspberry Pi 4 or 5)"
 
-# ── Hostname ──────────────────────────────────────────────────────────────────
-log "Setting hostname → smart-score-pi"
-hostnamectl set-hostname smart-score-pi
+# ── Hostname (unique per Pi: smart-score-pi-XXXX using last 4 hex of MAC) ────
+log "Setting unique hostname..."
+_mac=$(cat /sys/class/net/eth0/address 2>/dev/null \
+     || cat /sys/class/net/wlan0/address 2>/dev/null \
+     || echo "00:00:00:de:ad:00")
+MAC_SUFFIX=$(printf '%s' "$_mac" | tr -d ':\n' | tail -c 4 | tr 'a-f' 'A-F')
+HOSTNAME="smart-score-pi-${MAC_SUFFIX}"
+
+hostnamectl set-hostname "$HOSTNAME"
 if grep -q "^127.0.1.1" /etc/hosts; then
-  sed -i 's/^127.0.1.1.*/127.0.1.1\tsmart-score-pi/' /etc/hosts
+  sed -i "s/^127.0.1.1.*/127.0.1.1\t${HOSTNAME}/" /etc/hosts
 else
-  echo "127.0.1.1	smart-score-pi" >> /etc/hosts
+  echo "127.0.1.1	${HOSTNAME}" >> /etc/hosts
 fi
+log "Hostname → ${HOSTNAME}"
 
 # ── System packages ────────────────────────────────────────────────────────────
 log "Installing system packages..."
@@ -180,6 +187,6 @@ log "║  Reboot to start everything:                 ║"
 log "║    sudo reboot                               ║"
 log "║                                              ║"
 log "║  After reboot, provisioner connects at:      ║"
-log "║    http://smart-score-pi.local:3000          ║"
+log "║    http://${HOSTNAME}.local:3000             ║"
 log "╚══════════════════════════════════════════════╝"
 log ""
